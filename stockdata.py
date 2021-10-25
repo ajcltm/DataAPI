@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import re
+from numpy import poly
 from tqdm import tqdm
 import time
 
@@ -10,7 +11,39 @@ from datetime import datetime, timedelta
 import sqlite3
 
 from pykrx import stock
+from multiprocessing import Pool, Manager
+from functools import partial
 
+def getStartEndDay(folderPath, start, end, ticker) :
+    stockListDf = pd.read_parquet(folderPath/'stockListDB.parquet')
+    tickerDf = stockListDf.loc[stockListDf.loc[:, 'ticker']==ticker]
+    firstDay = tickerDf.loc[:, 'firstDay'].iat[-1]
+    endDay = tickerDf.loc[:, 'endDay'].iat[-1]
+
+    if firstDay > datetime.strptime(start, '%Y%m%d'):
+        start = firstDay.strftime(format='%Y%m%d')
+    else:
+        start = start
+
+    if endDay < datetime.strptime(end, '%Y%m%d'):
+        end = endDay.strftime(format='%Y%m%d')
+    else:
+        end = end
+
+    dic = {'start' : start, 'end' : end}
+    return dic
+
+def work_update(dfs, folderPath, start, end, ticker):
+    dic = getStartEndDay(folderPath, start, end, ticker)
+    # print(dic['start'], dic['end'], ticker)
+    nOfShareDf = stock.get_market_cap_by_date(dic['start'], dic['end'], ticker)
+    nOfShareDf = nOfShareDf.reset_index()[['날짜', '상장주식수']]
+    nOfShareDf.columns = ['date', 'nOfShare']
+    nOfShareDf = nOfShareDf.assign(ticker = ticker)
+    nOfShareDf = nOfShareDf.assign(name = stock.get_market_ticker_name(ticker))
+    colsOrder = ['date', 'ticker', 'name', 'nOfShare']
+    nOfShareDf = nOfShareDf[colsOrder]
+    dfs.append(nOfShareDf)
 
 class StockData() :
     
@@ -223,24 +256,7 @@ class StockData() :
         stockListDf = stockListDf.loc[con1&con2]
         return stockListDf
 
-    def getStartEndDay(self, start, end, ticker) :
-        stockListDf = pd.read_parquet(self.folderPath/'stockListDB.parquet')
-        tickerDf = stockListDf.loc[stockListDf.loc[:, 'ticker']==ticker]
-        firstDay = tickerDf.loc[:, 'firstDay'].iat[-1]
-        endDay = tickerDf.loc[:, 'endDay'].iat[-1]
-
-        if firstDay > datetime.strptime(start, '%Y%m%d'):
-            start = firstDay.strftime(format='%Y%m%d')
-        else:
-            start = start
-
-        if endDay < datetime.strptime(end, '%Y%m%d'):
-            end = endDay.strftime(format='%Y%m%d')
-        else:
-            end = end
-
-        dic = {'start' : start, 'end' : end}
-        return dic
+    
 
 
 
@@ -450,24 +466,16 @@ class StockData() :
             start = start.strftime('%Y%m%d')
             end = datetime.today().strftime('%Y%m%d')
 
+            pool = Pool(processes=8)
             tickers = self.getPeriodStockListDf(start, end)['ticker'].unique().tolist()
-            dfs=[]
-            for ticker in tqdm(tickers) :
-                time.sleep(.5)
-                dic = self.getStartEndDay(start, end, ticker)
-                # print(dic['start'], dic['end'], ticker)
-                nOfShareDf = stock.get_market_cap_by_date(dic['start'], dic['end'], ticker)
-                nOfShareDf = nOfShareDf.reset_index()[['날짜', '상장주식수']]
-                nOfShareDf.columns = ['date', 'nOfShare']
-                nOfShareDf = nOfShareDf.assign(ticker = ticker)
-                nOfShareDf = nOfShareDf.assign(name = stock.get_market_ticker_name(ticker))
-                colsOrder = ['date', 'ticker', 'name', 'nOfShare']
-                nOfShareDf = nOfShareDf[colsOrder]
-                dfs.append(nOfShareDf)
-            dfs = pd.concat(dfs)
+            dfs=Manager().list()
+            res = pool.map_async(partial(work_update, dfs, self.folderPath, start, end), tickers)
+            res.wait()
+            dfs = pd.concat(dfs, ignore_index=True)
             cols = ['date', 'ticker', 'name', 'nOfShare', 'kindOfStock', 'familyStock1', 'nOfShare_familyStock1', 'familyStock2', 'nOfShare_familyStock2', 'familyStock3', 'nOfShare_familyStock3', 'familyStock4', 'nOfShare_familyStock4']
             dfs = dfs.sort_values(by='date').reset_index(drop=True)
             tqdm.pandas()
+            print(dfs)
             expandDf = dfs.progress_apply(lambda row : self.additionalInfo(row['date'], row['name'], dfs[dfs.date==row['date']]), axis=1, result_type='expand')
             dfFinal = pd.concat([dfs.reset_index(drop=True), expandDf.reset_index(drop=True)], axis=1, join='inner') # merge wiht family stock df with the step1 df 
             dfFinal.columns = cols
@@ -482,4 +490,4 @@ class StockData() :
                 cursor.execute(sql, (row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[12], row[13]))
             connect.commit()
             connect.close()
-
+    

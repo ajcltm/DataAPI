@@ -356,7 +356,7 @@ class StockData() :
             connect.commit()
             connect.close()
 
-    def upgradeDb(self, kind) :   # kind = 'stockList', 'stockPrice', 'nOfshares', 'fundermental' 중 하나
+    def updateDb(self, kind, today=datetime.today().strftime('%Y%m%d')) :   # kind = 'stockList', 'stockPrice', 'nOfshares', 'fundermental' 중 하나
 
         if kind == 'stockList' :
             # query the exited DB and get the python dataframe
@@ -376,7 +376,7 @@ class StockData() :
             stockListDf_['endDay'] = pd.to_datetime(stockListDf_['endDay'], format='%Y%m%d')
 
             start = stockListDf_.sort_values(by='endDay')['endDay'].iat[-1].strftime('%Y%m%d')
-            end = datetime.today().strftime('%Y%m%d')
+            end = today
             dayList = self.getDayList(start, end)  # ex) if the last day of the exited df  : 20211008 -> inset(20211008, 20211011) 
 
             for k in tqdm(range(1, len(dayList))) :
@@ -404,7 +404,7 @@ class StockData() :
 
             stockListDf['firstDay'] = pd.to_datetime(stockListDf['firstDay'], format='%Y-%m-%d') # str(format 2021-11-27) -> datetime
             stockListDf['endDay'] = pd.to_datetime(stockListDf['endDay'], format='%Y-%m-%d') # str(format 2021-11-27) -> datetime
-            stockListDf.to_parquet(self.folderPath/'stockListDB.parquet')
+            stockListDf.iloc[:, :-1].to_parquet(self.folderPath/'stockListDB.parquet')
 
         elif kind == 'stockPrice' :
 
@@ -413,8 +413,10 @@ class StockData() :
             conn.close()
             stockPriceDf['date'] = pd.to_datetime(stockPriceDf['date'], format='%Y-%m-%d')
 
-            start = stockPriceDf.sort_values(by='date')['date'].iat[-1].strftime('%Y%m%d')
-            end = datetime.today().strftime('%Y%m%d')
+            start = stockPriceDf.sort_values(by='date')['date'].iat[-1]  
+            start = start + timedelta(days=1)  
+            start = start.strftime('%Y%m%d')
+            end = today
             dayList = self.getDayList(start, end)  # ex) if the last day of the exited df  : 20211008 -> inset(20211008, 20211011) 
 
             cols = ['date','ticker', 'open', 'high', 'low', 'close', 'volume', 'name']
@@ -441,14 +443,14 @@ class StockData() :
             stockPriceDB['date'] = pd.to_datetime(stockPriceDB['date'], format = '%Y-%m-%d')
             stockPriceDB = pd.concat([stockPriceDf, stockPriceDB], axis=0)
             stockPriceDB.reset_index(drop=True)
-            stockPriceDB.to_parquet(self.folderPath/'stockPriceDB.parquet')
+            stockPriceDB.iloc[:, 1:].to_parquet(self.folderPath/'stockPriceDB.parquet')
 
         elif kind == 'nOfShares' :
             df = pd.read_parquet(self.folderPath/'stockNumberOfSharesDB.parquet')
             dateS = df.sort_values(by='date').loc[:,'date'].iat[-1]
             start = dateS+timedelta(days=1)
             start = start.strftime('%Y%m%d')
-            end = datetime.today().strftime('%Y%m%d')
+            end = today
 
             tickers = self.getPeriodStockListDf(start, end)['ticker'].unique().tolist()
             dfs=[]
@@ -471,7 +473,10 @@ class StockData() :
             expandDf = dfs.progress_apply(lambda row : self.additionalInfo(row['date'], row['name'], dfs[dfs.date==row['date']]), axis=1, result_type='expand')
             dfFinal = pd.concat([dfs.reset_index(drop=True), expandDf.reset_index(drop=True)], axis=1, join='inner') # merge wiht family stock df with the step1 df 
             dfFinal.columns = cols
-            dfFinal.to_parquet(self.folderPath/'stockNumberOfSharesDB.parquet')
+
+            historicalDf = pd.read_parquet(self.folderPath/'stockNumberOfSharesDB.parquet')
+            newDf = pd.concat([historicalDf, dfFinal], ignore_index=True)  
+            newDf.reset_index(drop=True).to_parquet(self.folderPath/'stockNumberOfSharesDB.parquet') 
 
             dfFinal['date'] = dfFinal['date'].apply(lambda x: x.strftime('%Y-%m-%d'))
             # inset data into DB

@@ -77,14 +77,15 @@ class RequesterF(RequesterAF):
         return requests.get(self.url, self.paramsDict)
 
 
-class RceptnoInfo(concreteHandler, RequesterA, RequesterF):
+class RceptnoInfo:
 
     def __init__(self, corp_code, start, end) :
         self.requesterA = RequesterA(corp_code, start, end)
         self.requesterF = RequesterF(corp_code, start, end)
         
+    def get_rceptnoInfo(self):
         successor = concreteHandler(self.requesterF)
-        result = concreteHandler(self.requesterA, successor)
+        result = concreteHandler(self.requesterA, successor).handle_request()
 
         return result
 

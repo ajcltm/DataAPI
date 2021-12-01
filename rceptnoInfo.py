@@ -1,4 +1,8 @@
 import abc
+from pathlib import Path
+from tqdm import tqdm
+
+import pandas as pd
 import requests
 
 
@@ -77,16 +81,60 @@ class RequesterF(RequesterAF):
         return requests.get(self.url, self.paramsDict)
 
 
+class Preprocessor(metaclass=abc.ABCMeta):
+        
+    @abc.abstractmethod
+    def operation(self):
+        pass
+
+    
+class PreprocessorRceptnoInfo(Preprocessor):
+
+    def split_report_nm(self, df):
+        df_ = df.report_nm.str.extract(r'\[?(\w*)\]?(사업보고서|반기보고서|분기보고서|감사보고서|연결감사보고서).*\((\d{4}\.\d{2})\)', expand=True).rename(columns={0:'add_info', 1:'kind', 2:'date'})
+        addedDf = pd.concat([df, df_], axis=1)
+        return addedDf
+
+    def operation(self, df):
+        addedDf = self.split_report_nm(df)
+        dropedAddedDf = addedDf.dropna()
+        return dropedAddedDf
+
+
 class RceptnoInfo:
 
-    def __init__(self, corp_code, start, end) :
-        self.requesterA = RequesterA(corp_code, start, end)
-        self.requesterF = RequesterF(corp_code, start, end)
-        
+    rceptnoInfoDic = {}
+
     def get_rceptnoInfo(self):
         successor = concreteHandler(self.requesterF)
         result = concreteHandler(self.requesterA, successor).handle_request()
-
         return result
 
+    def transfer_df(self, dic):
+        keys = list(dic.keys())
+        dfs=[]
+        for key in keys:
+            df = pd.DataFrame(dic[key])
+            dfs.append(df)
+        transferDf = pd.concat(dfs)
+        return transferDf
     
+    def transfer_dic(self, df):
+        tickers = df.stock_code.unique().tolist()
+        dic={}
+        for ticker in tickers:
+            con = df.stock_code == ticker
+            df_ = df.loc[con]
+            dic[ticker] = df_.to_dict('records')
+        return dic
+    
+    def __init__(self, start, end, StockInfo, Preprocessor):
+        tickerLst = StockInfo.stockInfoDic.keys()
+        for ticker in tqdm(tickerLst) :
+            corp_code = StockInfo.stockInfoDic[ticker]['corp_code']
+            self.requesterA = RequesterA(corp_code, start, end)
+            self.requesterF = RequesterF(corp_code, start, end)
+            self.rceptnoInfoDic[ticker] = self.get_rceptnoInfo()
+        rceptnoInfoDf = self.transfer_df(self.rceptnoInfoDic)
+        preprocessedDf = Preprocessor.operation(rceptnoInfoDf)
+        self.rceptnoInfoDic = self.transfer_dic(preprocessedDf)

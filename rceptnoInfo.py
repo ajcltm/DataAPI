@@ -1,9 +1,11 @@
 import abc
 from pathlib import Path
 from tqdm import tqdm
+import time
 
 import pandas as pd
 import requests
+import stockInfo
 
 
 class Handler(metaclass=abc.ABCMeta):
@@ -61,7 +63,7 @@ class RequesterA(RequesterAF):
 
 
 class RequesterF(RequesterAF):
-    """A concrete function that requests rceptNo. pblntf_ty is 'A'"""
+    """A concrete function that requests rceptNo. pblntf_ty is 'F'"""
     documentVersion = 'F'
     url = 'https://opendart.fss.or.kr/api/list.json'
     paramsDict = None
@@ -103,13 +105,6 @@ class PreprocessorRceptnoInfo(Preprocessor):
 
 class RceptnoInfo:
 
-    rceptnoInfoDic = {}
-
-    def get_rceptnoInfo(self):
-        successor = concreteHandler(self.requesterF)
-        result = concreteHandler(self.requesterA, successor).handle_request()
-        return result
-
     def transfer_df(self, dic):
         keys = list(dic.keys())
         dfs=[]
@@ -120,21 +115,53 @@ class RceptnoInfo:
         return transferDf
     
     def transfer_dic(self, df):
-        tickers = df.stock_code.unique().tolist()
+        corp_codes = df.corp_code.unique().tolist()
         dic={}
-        for ticker in tickers:
-            con = df.stock_code == ticker
+        for corp_code in corp_codes:
+            con = df.corp_code == corp_code
             df_ = df.loc[con]
-            dic[ticker] = df_.to_dict('records')
+            dic[corp_code] = df_.to_dict('records')
         return dic
     
-    def __init__(self, start, end, StockInfo, Preprocessor):
-        tickerLst = StockInfo.stockInfoDic.keys()
-        for ticker in tqdm(tickerLst) :
-            corp_code = StockInfo.stockInfoDic[ticker]['corp_code']
+    def get_rceptnoInfo(self, corp_code, start, end):
+        rceptnoInfoDic = {}
+        self.requesterA = RequesterA(corp_code, start, end)
+        self.requesterF = RequesterF(corp_code, start, end)
+        successor = concreteHandler(self.requesterF)
+        result = concreteHandler(self.requesterA, successor).handle_request()
+        rceptnoInfoDic[corp_code] = result
+        rceptnoInfoDf = self.transfer_df(rceptnoInfoDic)
+        preprocessedDf = self.Preprocessor.operation(rceptnoInfoDf)
+        rceptnoInfoDic = self.transfer_dic(preprocessedDf)
+        return rceptnoInfoDic
+
+    def get_batch_rceptnoInfo(self, corp_codeLst, start, end):
+        rceptnoInfoDic = {}
+        for corp_code in tqdm(corp_codeLst) :
+            time.sleep(1)
             self.requesterA = RequesterA(corp_code, start, end)
             self.requesterF = RequesterF(corp_code, start, end)
-            self.rceptnoInfoDic[ticker] = self.get_rceptnoInfo()
-        rceptnoInfoDf = self.transfer_df(self.rceptnoInfoDic)
-        preprocessedDf = Preprocessor.operation(rceptnoInfoDf)
-        self.rceptnoInfoDic = self.transfer_dic(preprocessedDf)
+            successor = concreteHandler(self.requesterF)
+            result = concreteHandler(self.requesterA, successor).handle_request()
+            rceptnoInfoDic[corp_code] = result
+        rceptnoInfoDf = self.transfer_df(rceptnoInfoDic)
+        preprocessedDf = self.Preprocessor.operation(rceptnoInfoDf)
+        rceptnoInfoDic = self.transfer_dic(preprocessedDf)
+        return rceptnoInfoDic
+
+    
+    def __init__(self, Preprocessor):
+        self.Preprocessor = Preprocessor
+
+
+if __name__ == '__main__':
+    path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
+    commonStockProvider = stockInfo.commonStockProvider()
+    stockinfo = stockInfo.StockInfo(path, commonStockProvider)
+    stockInfoDic = stockinfo.stockInfoDic
+    tickerLst = list(stockInfoDic.keys())
+    corp_code = stockInfoDic[tickerLst[0]]['corp_code']
+    preprocessor = PreprocessorRceptnoInfo()
+    rc = RceptnoInfo(preprocessor)
+    result = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
+    print(result)

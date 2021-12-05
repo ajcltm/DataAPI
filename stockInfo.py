@@ -48,11 +48,23 @@ class StockInfo:
     stockInfoDic = {}
 
     def __init__(self, path, StockProvider):
-        commonStockTickers = StockProvider.operation(path)
+        self.path = path
+        self.stockProvider = StockProvider
+
+    def get_stockInfo(self, ticker):
+        stockInfoDic = {}
+        stockInfoDic[ticker] = {'ticker' : ticker,
+                                'name' : NameProvider(self.path, ticker).get_name(),
+                                'corp_code' : CorpCodeProvider(ticker).get_corp_code()
+                                }
+        return stockInfoDic
+
+    def get_batch_stockInfo(self):
+        stockInfoDic = {}
+        commonStockTickers = self.stockProvider.operation(self.path)
         for ticker in tqdm(commonStockTickers) :
-            self.stockInfoDic[ticker] = {'ticker' : ticker,
-                                            'name' : NameProvider(path, ticker).get_name(),
-                                            'corp_code' : CorpCodeProvider(ticker).get_corp_code()
-                                            }
-
-
+            stockInfoDic[ticker] = {'ticker' : ticker,
+                                    'name' : NameProvider(self.path, ticker).get_name(),
+                                    'corp_code' : CorpCodeProvider(ticker).get_corp_code()
+                                    }
+        return stockInfoDic

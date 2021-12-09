@@ -110,6 +110,23 @@ class Handler:
             print('None')
             return None
 
+class Report:
+
+    def get_report(self, rcept_no):
+        url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}'
+        r = requests.get(url)
+        reportHtml = r.text
+        parser1 = Parser(nord = Nord2Parser(reportHtml), parser_format = r'.*연결재무제표$')
+        parser2 = Parser(nord = Nord1Parser(reportHtml), parser_format = r'.*재무제표 등$')
+        parser3 = Parser(nord = Nord2Parser(reportHtml), parser_format = r'^[^가-힣]*재무제표$')
+        successor2 = Handler(parser3)
+        successor1 = Handler(parser2, successor2)
+        report = Handler(parser1, successor1).handle_request()
+        return report
+    
+
+
+
 if __name__ == '__main__' :
 
     from pathlib import Path
@@ -139,14 +156,6 @@ if __name__ == '__main__' :
     rcept_no = random.choice(rcept_noLst)
     print(f'rcept_no : {rcept_no}')
     print('-'*150)
-    url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}'
-    r = requests.get(url)
-    reportHtml = r.text
-    parser1 = Parser(nord = Nord2Parser(reportHtml), parser_format = r'.*연결재무제표$')
-    parser2 = Parser(nord = Nord1Parser(reportHtml), parser_format = r'.*재무제표 등$')
-    parser3 = Parser(nord = Nord2Parser(reportHtml), parser_format = r'^[^가-힣]*재무제표$')
-    successor2 = Handler(parser3)
-    successor1 = Handler(parser2, successor2)
-    report = Handler(parser1, successor1).handle_request()
+    report = Report().get_report(rcept_no)
     print('-'*150)
     print(report[0].head(), report[1].head())

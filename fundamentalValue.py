@@ -1,3 +1,21 @@
+import numpy as np
+import pandas as pd
+
+
+class ValueIdentifier:
+    columns_parser = r'^.*[0-9]*.?[기]'
+    numeric_parser = r'^[0-9]*\.?[0-9]$'
+    def identifyColumns(self, df):
+        for col in df.columns:
+            con = df.loc[:, col].str.contains(self.columns_parser, regex=True)
+            result = df.loc[con].iloc[0]
+            return result
+    def identifyNumeric(self, sr):
+        con_ = sr.str.contains(self.numeric_parser, regex=True)
+        print(sr.loc[con_])
+        result = sr.loc[con_].iat[0]
+        return result
+        
 
 class ReportPreprocessor:
 
@@ -5,7 +23,9 @@ class ReportPreprocessor:
         self.report = report
 
     def operation(self):
+        self.report = self.report.apply(lambda col: col.astype(str), axis=1)
         self.report = self.report.apply(lambda col: col.str.replace(' ', ''), axis=1)
+        # self.report = self.report.apply(lambda col: pd.to_numeric(col, errors='ignore'), axis=1)
 
         return self.report
 
@@ -13,32 +33,72 @@ class EquityProvider:
 
     parserLst = ['^자본총계$']
 
-    def __init__(self, report):
-        self.report = report
+    def __init__(self):
+        self.__report = None
+
+    def set(self, report):
+        self.__report = report
 
     def get_values(self):
-        for col in self.report.columns:
+        for col in self.__report.columns:
             for parser in self.parserLst:
-                con = self.report.loc[:, col].str.contains(parser, regex=True)
-                sr = self.report.loc[con]
-                if not sr.empty:
-                    return int(sr.iat[0,1])
+                con = self.__report.loc[:, col].str.contains(parser, regex=True)
+                sr = self.__report.loc[con]
+                if not sr.empty :
+                    df = sr.squeeze().reset_index()
+                    sr = ValueIdentifier().identifyColumns(df)
+                    if isinstance(sr, pd.Series):
+                        print(sr)
+                        value = ValueIdentifier().identifyNumeric(sr)
+                        print(value)
+                        value = int(float(value))
+                        print(f'equity : {value}', type(value), sep=', ')
+                        return value
+                else:
+                    return None
 
 class LiabilityProvider:
 
     parserLst = ['^부채총계$']
 
-    def __init__(self, report):
-        self.report = report
+    def __init__(self):
+        self.__report = None
+
+    def set(self, report):
+        self.__report = report
 
     def get_values(self):
-        for col in self.report.columns:
+        for col in self.__report.columns:
             for parser in self.parserLst:
-                con = self.report.loc[:, col].str.contains(parser, regex=True)
-                sr = self.report.loc[con]
+                con = self.__report.loc[:, col].str.contains(parser, regex=True)
+                sr = self.__report.loc[con]
                 if not sr.empty:
-                    return int(sr.iat[0,1])
-                    
+                    df = sr.squeeze().reset_index()
+                    sr = ValueIdentifier().identifyColumns(df)
+                    if isinstance(sr, pd.Series):
+                        value = ValueIdentifier().identifyNumeric(sr)
+                        value = int(float(value))
+                        print(f'liability : {value}', type(value), sep=', ')
+                        return value
+                else:
+                    return None
+
+class ValueSearcher:
+
+    def __init__(self, reports, provider):
+        self.reports = reports
+        self.provider = provider
+
+    def search(self):
+        for report in self.reports:
+            print(report)
+            print('-'*50)
+            report = ReportPreprocessor(report).operation()
+            self.provider.set(report)
+            value = self.provider.get_values()
+            if value :
+                return value
+        return None
 
 
 if __name__ == '__main__' :
@@ -51,10 +111,13 @@ if __name__ == '__main__' :
     import report
 
     path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
+
+    stockList = pd.read_parquet(path/'stockListDB.parquet')
+    tickers = stockList.ticker.unique().tolist()
+    ticker = random.choice(tickers)
+
     commonStockProvider = stockInfo.commonStockProvider()
     stockinfo = stockInfo.StockInfo(path, commonStockProvider)
-
-    ticker = '078930'
     stockInfoDic = stockinfo.get_stockInfo(ticker)
     corp_code = stockInfoDic[ticker]['corp_code']
     print('='*150)
@@ -70,20 +133,18 @@ if __name__ == '__main__' :
     print(f'length of rcept_noLst : {len(rcept_noLst)}')
 
     rcept_no = random.choice(rcept_noLst)
+
+    # rcept_no = '20211115001521'
+    rcept_no = '20210309000744'
+    # rcept_no = '20121129001089'
+
     print(f'rcept_no : {rcept_no}')
     print('-'*150)
-    report = report.Report().get_report(rcept_no)
-    print('-'*150)
-    print(report[0].tail(), report[1].tail(), sep = '\n')
+    reports = report.Report().get_report(rcept_no)
 
-    report_ = ReportPreprocessor(report[0]).operation()
-    report__ = ReportPreprocessor(report[1]).operation()
-    print('-'*150)
-    print(report_.tail(), report__.tail(), sep = '\n')
-
-    equity = EquityProvider(report__).get_values()
-    LiabilityProvider
-    liability = LiabilityProvider(report__).get_values()
-    print(f'equity : {equity}', type(equity), sep=', ')
-    print(f'liability : {liability}', type(liability), sep=', ')
-    print(f'sum : {equity+liability}', type(equity+liability), sep=', ')
+    ep = EquityProvider()
+    equity = ValueSearcher(reports, ep).search()
+    lp = LiabilityProvider()
+    liability = ValueSearcher(reports, lp).search()
+    if equity and liability:
+        print(f'sum : {equity+liability}', type(equity+liability), sep=', ')

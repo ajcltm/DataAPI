@@ -487,14 +487,14 @@ class StockShareDB(StockData):
         connect.commit()
         connect.close()
 
-def testCreateDbStockList(folderPath):
+def testCreateDbStockList(folderPath, today):
     db = StockListDB(folderPath)
-    db.createDb()
+    db.updateDb(today)
 
-def testCreateDbStockPrice(folderPath):
+def testCreateDbStockPrice(folderPath, today):
     db = StockPriceDB(folderPath)
-    db.createDb()
+    db.updateDb(today)
 
-def testCreateDbShares(folderPath):
+def testCreateDbShares(folderPath, today):
     db = StockShareDB(folderPath)
-    db.createDb()
+    db.updateDb(today)

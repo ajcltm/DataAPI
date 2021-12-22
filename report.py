@@ -2,10 +2,10 @@ import abc
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
-
 import pandas as pd
-
 import re
+
+import preprocess
 
 
 
@@ -135,19 +135,18 @@ class BalanceSheet:
 
     def __init__(self, html):
         self.soup = html
+    
+    def get_preprocessed_reportLst(self):
+        reportLst = []
+        for report in self.reports:
+            report = preprocess.ReportPreprocessor(report).operation()
+            reportLst.append(report)
+        return reportLst
         
     def export_first_numeric_report(self):
         for report in self.reports:
             for col in report.columns:
                 test_report = report.loc[:, col]
-                test_report = test_report.fillna(0)
-                test_report = test_report.astype(str)
-                test_report = test_report.str.replace(' ', '')
-                test_report = test_report.str.replace(',', '')
-                test_report = test_report.str.replace('(', '-')
-                test_report = test_report.str.replace(')', '')
-                test_report = test_report.apply(lambda col: pd.to_numeric(col, errors='ignore'))
-                # test_report = test_report.astype('float')
                 print(f'value : {test_report.values}')
                 dtype = test_report.values.dtype
                 print(f'dtype : {dtype}')
@@ -169,6 +168,7 @@ class BalanceSheet:
                 print(string)
                 table_soup = self.soup.find_all(string=re.compile(parser))[0].find_all_next('table')
                 self.reports = pd.read_html(str(table_soup))
+                self.reports = self.get_preprocessed_reportLst()
                 report = self.export_first_numeric_report()
             else:
                 return None

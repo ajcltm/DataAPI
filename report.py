@@ -110,14 +110,18 @@ class Handler:
             print('None')
             return None
 
-class HtmlReport:
+class HtmlProvider:
 
-    def get_report(self, rcept_no):
+    def __init__(self, parser_format_1, parser_format_2):
+        self.parser_format_1 = parser_format_1
+        self.parser_format_2 = parser_format_2
+
+    def get_html(self, rcept_no):
         url = f'http://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}'
         r = requests.get(url)
         reportHtml = r.text
-        parser1 = Parser(nord = Nord2Parser(reportHtml), parser_format = r'.*연결재무제표$')
-        parser2 = Parser(nord = Nord1Parser(reportHtml), parser_format = r'.*재무제표 등$')
+        parser1 = Parser(nord = Nord2Parser(reportHtml), parser_format = self.parser_format_1) 
+        parser2 = Parser(nord = Nord1Parser(reportHtml), parser_format = self.parser_format_2) 
         # parser3 = Parser(nord = Nord2Parser(reportHtml), parser_format = r'^[^가-힣]*재무제표$')
         # successor2 = Handler(parser3)
         # successor1 = Handler(parser2, successor2)
@@ -126,15 +130,14 @@ class HtmlReport:
         html = Handler(parser1, successor).handle_request()
         return html
 
-class BalanceSheet:
+class ReportSearcher:
     # consolidatedParsers = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*']
     # consolidatedParsers = [r'연\s*결\s*손\s*익\s*계\s*산\s*서\s*']
     # consolidatedParsers = [r'연\s*결\s*포\s*괄\s*손\s*익\s*계\s*산\s*서\s*']
-    consolidatedParsers = [r'연\s*결\s*현\s*금\s*흐\s*름\s*표']
-    notConsolidated = []
+    # consolidatedParsers = [r'연\s*결\s*현\s*금\s*흐\s*름\s*표']
 
-    def __init__(self, html):
-        self.soup = html
+    def __init__(self, parser_format_lst):
+        self.parser_format_lst = parser_format_lst
     
     def get_preprocessed_reportLst(self):
         reportLst = []
@@ -160,20 +163,36 @@ class BalanceSheet:
                 if dtype =='int64':
                     return report
 
-    def get_consolidated(self):
-        for parser in self.consolidatedParsers:
-            string = self.soup.find_all(string=re.compile(parser))
+    def get_table(self, html):
+        soup = html
+        for parser in self.parser_format_lst:
+            print(f'parser : {parser}')
+            string = soup.find_all(string=re.compile(parser))
             print(bool(string))
             if string:
                 print(string)
-                table_soup = self.soup.find_all(string=re.compile(parser))[0].find_all_next('table')
+                table_soup = soup.find_all(string=re.compile(parser))[0].find_all_next('table')
                 self.reports = pd.read_html(str(table_soup))
                 self.reports = self.get_preprocessed_reportLst()
                 report = self.export_first_numeric_report()
-            else:
-                return None
-            return report
+                return report
+        return None
     
+class ReportProvider:
+
+    def __init__(self, HtmlProvider, ReportSearcher):
+        self.HtmlProvider = HtmlProvider
+        self.ReportSearcher = ReportSearcher
+    
+    def get_report(self, rcept_no):
+        html = self.HtmlProvider.get_html(rcept_no)
+        if not html == None:
+            report = self.ReportSearcher.get_table(html)
+            print('-'*150)
+            print(report)
+            return report
+        else :
+            return None
 
 if __name__ == '__main__' :
 
@@ -182,34 +201,34 @@ if __name__ == '__main__' :
     import stockInfo
     import rceptnoInfo
 
-    path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
+    # path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
 
-    stockList = pd.read_parquet(path/'stockListDB.parquet')
-    tickers = stockList.ticker.unique().tolist()
-    ticker = random.choice(tickers)
+    # stockList = pd.read_parquet(path/'stockListDB.parquet')
+    # tickers = stockList.ticker.unique().tolist()
+    # ticker = random.choice(tickers)
 
-    commonStockProvider = stockInfo.commonStockProvider()
-    stockinfo = stockInfo.StockInfo(path, commonStockProvider)
-    stockInfoDic = stockinfo.get_stockInfo(ticker)
-    corp_code = stockInfoDic[ticker]['corp_code']
-    print('='*150)
-    print(f'target : {stockInfoDic[ticker]}')
+    # commonStockProvider = stockInfo.commonStockProvider()
+    # stockinfo = stockInfo.StockInfo(path, commonStockProvider)
+    # stockInfoDic = stockinfo.get_stockInfo(ticker)
+    # corp_code = stockInfoDic[ticker]['corp_code']
+    # print('='*150)
+    # print(f'target : {stockInfoDic[ticker]}')
 
-    preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
-    rc = rceptnoInfo.RceptnoInfo(preprocessor)
-    rceptnoInfoDic = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
+    # preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
+    # rc = rceptnoInfo.RceptnoInfo(preprocessor)
+    # rceptnoInfoDic = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
 
-    rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[corp_code])
-    con = rceptnoInfoDf.add_info == ''
-    rcept_noLst = rceptnoInfoDf.loc[con].rcept_no.to_list()
-    print(f'length of rcept_noLst : {len(rcept_noLst)}')
+    # rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[corp_code])
+    # con = rceptnoInfoDf.add_info == ''
+    # rcept_noLst = rceptnoInfoDf.loc[con].rcept_no.to_list()
+    # print(f'length of rcept_noLst : {len(rcept_noLst)}')
 
-    rcept_no = random.choice(rcept_noLst)
-    # rcept_no = '20160330001826'
+    # rcept_no = random.choice(rcept_noLst)
+    rcept_no = '20160513004804'
     print(f'rcept_no : {rcept_no}')
+
     print('-'*150)
-    html = HtmlReport().get_report(rcept_no)
-    print('-'*150)
-    if not html == None: 
-        report = BalanceSheet(html).get_consolidated()
-        print(report)
+    hp = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$')
+    parser_format_lst = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*', r'연\s*결\s*대\s*차\s*대\s*조\s*표\s*']
+    rs = ReportSearcher(parser_format_lst)
+    report = ReportProvider(hp, rs).get_report(rcept_no)

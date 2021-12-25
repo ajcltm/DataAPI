@@ -130,6 +130,16 @@ class HtmlProvider:
         html = Handler(parser1, successor).handle_request()
         return html
 
+class HtmlSetter:
+
+    def __init__(self, rcept_no):
+        self.rcept_no = rcept_no
+    
+    def get_set_of_htmls(self):
+        htmlForConsolidated = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$').get_html(self.rcept_no)
+        htmelForNonConsolidated = HtmlProvider(r'^[^가-힣]*재무제표$', r'.*재무제표 등$').get_html(self.rcept_no)
+        return {'htmlForConsolidated':htmlForConsolidated, 'htmelForNonConsolidated':htmelForNonConsolidated}
+
 class ReportSearcher:
     # consolidatedParsers = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*']
     # consolidatedParsers = [r'연\s*결\s*손\s*익\s*계\s*산\s*서\s*']
@@ -180,19 +190,42 @@ class ReportSearcher:
     
 class ReportProvider:
 
-    def __init__(self, HtmlProvider, ReportSearcher):
-        self.HtmlProvider = HtmlProvider
+    def __init__(self, html, ReportSearcher):
+        self.html = html
         self.ReportSearcher = ReportSearcher
     
-    def get_report(self, rcept_no):
-        html = self.HtmlProvider.get_html(rcept_no)
-        if not html == None:
-            report = self.ReportSearcher.get_table(html)
+    def get_report(self):
+        if not self.html == None:
+            report = self.ReportSearcher.get_table(self.html)
             print('-'*150)
             print(report)
             return report
         else :
             return None
+
+class ReportSetter:
+
+    def __init__(self, rcept_no):
+        self.rcept_no = rcept_no
+
+    def get_set_of_report(self):
+        set_of_report = {}
+        # html = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$').get_html(self.rcept_no)
+        set_of_htmls = HtmlSetter(self.rcept_no).get_set_of_htmls()
+        html = set_of_htmls['htmlForConsolidated']
+        parser_format_lst = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*', r'연\s*결\s*대\s*차\s*대\s*조\s*표\s*']
+        rs = ReportSearcher(parser_format_lst)
+        consolidated_balance_sheet = ReportProvider(html, rs).get_report()
+        set_of_report['consolidated_balance_sheet'] = consolidated_balance_sheet
+
+        parser_format_lst = [r'연\s*결\s*손\s*익\s*계\s*산\s*서\s*']
+        rs = ReportSearcher(parser_format_lst)
+        consolidated_income_statement = ReportProvider(html, rs).get_report()
+        set_of_report['consolidated_income_statement'] = consolidated_income_statement
+
+        return set_of_report
+
+
 
 if __name__ == '__main__' :
 
@@ -227,8 +260,11 @@ if __name__ == '__main__' :
     rcept_no = '20160513004804'
     print(f'rcept_no : {rcept_no}')
 
-    print('-'*150)
-    hp = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$')
-    parser_format_lst = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*', r'연\s*결\s*대\s*차\s*대\s*조\s*표\s*']
-    rs = ReportSearcher(parser_format_lst)
-    report = ReportProvider(hp, rs).get_report(rcept_no)
+    # print('-'*150)
+    # html = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$').get_html(rcept_no)
+    # parser_format_lst = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*', r'연\s*결\s*대\s*차\s*대\s*조\s*표\s*']
+    # rs = ReportSearcher(parser_format_lst)
+    # report = ReportProvider(html, rs).get_report()
+
+    set_of_reports = ReportSetter(rcept_no).get_set_of_report()
+    print(set_of_reports)

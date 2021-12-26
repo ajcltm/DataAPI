@@ -1,5 +1,8 @@
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
+import report
 
 
 class ValueIdentifier:
@@ -27,9 +30,11 @@ class ValueIdentifier:
             print(f'int_bool : {bool2}')
             
             if dtype == 'float':
-                return test_df[test_df > 0].iat[0]
+                con = test_df == 0
+                return test_df[~con].iat[0]
             if dtype =='int64':
-                return test_df[test_df > 0].iat[0]
+                con = test_df == 0
+                return test_df[~con].iat[0]
 
         return None
         
@@ -120,6 +125,37 @@ class ValueSearcher:
             return value
         return None
 
+@dataclass
+class FundamentalValues:
+    consolidatedEquity:int
+    consolidatedLiability:int
+    equity:int
+    liability:int
+
+class FundamentalValuesProvider:
+
+    def __init__(self, rcept_no):
+        self.rcept_no = rcept_no
+
+    def get_fundamental_value(self):
+        set_of_reports = report.ReportSetter(self.rcept_no).get_set_of_report()
+
+        ep = EquityProvider()
+        lp = LiabilityProvider()
+
+        consolidated_balance_sheet = set_of_reports['consolidated_balance_sheet']
+        consolidatedEquity = ValueSearcher(consolidated_balance_sheet, ep).search()
+        consolidatedliability = ValueSearcher(consolidated_balance_sheet, lp).search()    
+
+        balance_sheet = set_of_reports['balance_sheet']
+        equity = ValueSearcher(balance_sheet, ep).search()    
+        liability = ValueSearcher(balance_sheet, lp).search()  
+
+        data = FundamentalValues(consolidatedEquity, consolidatedliability, equity, liability)
+
+        return data
+
+
 
 if __name__ == '__main__' :
 
@@ -127,43 +163,32 @@ if __name__ == '__main__' :
     import random
     import stockInfo
     import rceptnoInfo
-    import report
 
-    # path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
+    path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
 
-    # stockList = pd.read_parquet(path/'stockListDB.parquet')
-    # tickers = stockList.ticker.unique().tolist()
-    # ticker = random.choice(tickers)
+    stockList = pd.read_parquet(path/'stockListDB.parquet')
+    tickers = stockList.ticker.unique().tolist()
+    ticker = random.choice(tickers)
 
-    # commonStockProvider = stockInfo.commonStockProvider()
-    # stockinfo = stockInfo.StockInfo(path, commonStockProvider)
-    # stockInfoDic = stockinfo.get_stockInfo(ticker)
-    # corp_code = stockInfoDic[ticker]['corp_code']
-    # print('='*150)
-    # print(f'target : {stockInfoDic[ticker]}')
+    commonStockProvider = stockInfo.commonStockProvider()
+    stockinfo = stockInfo.StockInfo(path, commonStockProvider)
+    stockInfoDic = stockinfo.get_stockInfo(ticker)
+    corp_code = stockInfoDic[ticker]['corp_code']
+    print('='*150)
+    print(f'target : {stockInfoDic[ticker]}')
 
-    # preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
-    # rc = rceptnoInfo.RceptnoInfo(preprocessor)
-    # rceptnoInfoDic = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
+    preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
+    rc = rceptnoInfo.RceptnoInfo(preprocessor)
+    rceptnoInfoDic = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
 
-    # rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[corp_code])
-    # con = rceptnoInfoDf.add_info == ''
-    # rcept_noLst = rceptnoInfoDf.loc[con].rcept_no.to_list()
-    # print(f'length of rcept_noLst : {len(rcept_noLst)}')
+    rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[corp_code])
+    con = rceptnoInfoDf.add_info == ''
+    rcept_noLst = rceptnoInfoDf.loc[con].rcept_no.to_list()
+    print(f'length of rcept_noLst : {len(rcept_noLst)}')
 
-    # rcept_no = random.choice(rcept_noLst)
-    rcept_no = '20211115001521'
+    rcept_no = random.choice(rcept_noLst)
+    # rcept_no = '20141114000936'
     print(f'rcept_no : {rcept_no}')
 
-    print('-'*150)
-    set_of_reports = report.ReportSetter(rcept_no).get_set_of_report()
-
-    ep = EquityProvider()
-    report = set_of_reports['consolidated_balance_sheet']
-    equity = ValueSearcher(report, ep).search()
-    print(f'equity : {equity}')
-    lp = LiabilityProvider()
-    liability = ValueSearcher(report, lp).search()
-    print(f'liability : {liability}')
-    if equity and liability:
-        print(f'sum : {equity+liability}', type(equity+liability), sep=', ')
+    data = FundamentalValuesProvider(rcept_no).get_fundamental_value()
+    print(data)

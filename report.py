@@ -138,7 +138,7 @@ class HtmlSetter:
     def get_set_of_htmls(self):
         htmlForConsolidated = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$').get_html(self.rcept_no)
         htmelForNonConsolidated = HtmlProvider(r'^[^가-힣]*재무제표$', r'.*재무제표 등$').get_html(self.rcept_no)
-        return {'htmlForConsolidated':htmlForConsolidated, 'htmelForNonConsolidated':htmelForNonConsolidated}
+        return {'htmlForConsolidated':htmlForConsolidated, 'htmlForNonConsolidated':htmelForNonConsolidated}
 
 class ReportSearcher:
     # consolidatedParsers = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*']
@@ -212,16 +212,22 @@ class ReportSetter:
         set_of_report = {}
         # html = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$').get_html(self.rcept_no)
         set_of_htmls = HtmlSetter(self.rcept_no).get_set_of_htmls()
-        html = set_of_htmls['htmlForConsolidated']
+        htmlForConsolidated = set_of_htmls['htmlForConsolidated']
         parser_format_lst = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*', r'연\s*결\s*대\s*차\s*대\s*조\s*표\s*']
         rs = ReportSearcher(parser_format_lst)
-        consolidated_balance_sheet = ReportProvider(html, rs).get_report()
+        consolidated_balance_sheet = ReportProvider(htmlForConsolidated, rs).get_report()
         set_of_report['consolidated_balance_sheet'] = consolidated_balance_sheet
 
         parser_format_lst = [r'연\s*결\s*손\s*익\s*계\s*산\s*서\s*']
         rs = ReportSearcher(parser_format_lst)
-        consolidated_income_statement = ReportProvider(html, rs).get_report()
+        consolidated_income_statement = ReportProvider(htmlForConsolidated, rs).get_report()
         set_of_report['consolidated_income_statement'] = consolidated_income_statement
+
+        htmlForNonConsolidated = set_of_htmls['htmlForNonConsolidated']
+        parser_format_lst = [r'^[^가-힣]*재\s*무\s*상\s*태\s*표\s*', r'^[가-하]*[^가-힣]*재\s*무\s*상\s*태\s*표\s*', r'^[^가-힣]*대\s*차\s*대\s*조\s*표\s*']
+        rs = ReportSearcher(parser_format_lst)
+        balance_sheet = ReportProvider(htmlForNonConsolidated, rs).get_report()
+        set_of_report['balance_sheet'] = balance_sheet
 
         return set_of_report
 

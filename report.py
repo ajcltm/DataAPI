@@ -173,6 +173,15 @@ class ReportSearcher:
                 if dtype =='int64':
                     return report
 
+    def get_unit(self, soup, parser):
+        unit_dic = {'원': 1, '천원':1000, '백만원': 1000000}
+
+        unit_string = soup.find_all(string=re.compile(parser))[0].find_all_next(string=re.compile('단위'))[0]
+        unit_string = unit_string.replace(' ', '').replace(')', '').split(':')[-1]
+
+        unit = unit_dic.get(unit_string)
+        return unit
+
     def get_table(self, html):
         soup = html
         for parser in self.parser_format_lst:
@@ -182,11 +191,13 @@ class ReportSearcher:
             if string:
                 print(string)
                 table_soup = soup.find_all(string=re.compile(parser))[0].find_all_next('table')
+                unit = self.get_unit(soup, parser)
+                print(f'unit : {unit}')
                 self.reports = pd.read_html(str(table_soup))
                 self.reports = self.get_preprocessed_reportLst()
                 report = self.export_first_numeric_report()
-                return report
-        return None
+                return (report, unit)
+        return (None, None)
     
 class ReportProvider:
 
@@ -201,7 +212,7 @@ class ReportProvider:
             print(report)
             return report
         else :
-            return None
+            return (None, None)
 
 class ReportSetter:
 
@@ -225,7 +236,7 @@ class ReportSetter:
         consolidated_income_statement = ReportProvider(htmlForConsolidated, rs).get_report()
         set_of_report['consolidated_income_statement'] = consolidated_income_statement
 
-        parser_format_lst = [r'연\s*결\s*포\s*괄\s*손\s*익\s*계\s*산\s*서\s*']
+        parser_format_lst = [r'연\s*결\s포\s*괄\s*손\s*익\s*계\s*산\s*서\s*', r'.*손\s*익\s*계\s*산\s*서\s*']
         rs = ReportSearcher(parser_format_lst)
         Consolidated_comprehensive_income_statement = ReportProvider(htmlForConsolidated, rs).get_report()
         set_of_report['Consolidated_comprehensive_income_statement'] = Consolidated_comprehensive_income_statement
@@ -291,7 +302,7 @@ if __name__ == '__main__' :
     # print(f'length of rcept_noLst : {len(rcept_noLst)}')
 
     # rcept_no = random.choice(rcept_noLst)
-    rcept_no = '20160513004804'
+    rcept_no = '20180402004606'
     print(f'rcept_no : {rcept_no}')
 
     # print('-'*150)

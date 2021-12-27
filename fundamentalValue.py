@@ -36,10 +36,12 @@ class ValueIdentifier:
             
             if dtype == 'float':
                 con = test_df == 0
-                return test_df[~con].iat[0]
+                if not test_df[~con].empty:
+                    return test_df[~con].iat[0]
             if dtype =='int64':
                 con = test_df == 0
-                return test_df[~con].iat[0]
+                if not test_df[~con].empty:
+                    return test_df[~con].iat[0]
 
         return None
         
@@ -68,6 +70,7 @@ class ValueProvider:
     def get_values(self):
         for col in self.__report.columns:
             for parser in self.parserLst:
+                print(f'get_Values : {parser}')
                 con = self.__report.loc[:, col].str.contains(parser, regex=True)
                 sr = self.__report.loc[con]
                 if not sr.empty :
@@ -81,8 +84,7 @@ class ValueProvider:
                         value = int(float(value))
                         print(f'equity : {value}', type(value), sep=', ')
                         return value
-                else:
-                    return None
+        return None
 
 # class LiabilityProvider:
 
@@ -129,6 +131,7 @@ class ValueSearcher:
             return value
         return None
 
+
 @dataclass
 class FundamentalValues:
     consolidatedEquity:int
@@ -139,15 +142,17 @@ class FundamentalValues:
     consolidatedComprehensiveNetIncome:int
     consolidatedComprehensiveGrossProfit:int
     consolidatedComprehensiveOperatingProfit:int
+    consolidatedOperatingActivities:int
 
     equity:int
     liability:int
-    NetIncome:int
-    GrossProfit:int
-    OperatingProfit:int
-    ComprehensiveNetIncome:int
-    ComprehensiveGrossProfit:int
-    ComprehensiveOperatingProfit:int
+    netIncome:int
+    grossProfit:int
+    operatingProfit:int
+    comprehensiveNetIncome:int
+    comprehensiveGrossProfit:int
+    comprehensiveOperatingProfit:int
+    operatingActivities:int
 
 
 class FundamentalValuesProvider:
@@ -155,56 +160,104 @@ class FundamentalValuesProvider:
     def __init__(self, rcept_no):
         self.rcept_no = rcept_no
 
+    def multiply_unit(self, value, unit):
+        if not value == None :
+            return value*unit
+        return None
+
     def get_fundamental_value(self):
         set_of_reports = report.ReportSetter(self.rcept_no).get_set_of_report()
 
-        parserLst = ['^자본총계$']
+        parserLst = [r'^자본총계$',r'^[^가-힣]*자\s*본\s*총\s*계\s*', r'^[가나다라마바사아]*[^가-힣]*자\s*본\s*총\s*계\s*']
         ep = ValueProvider(parserLst)
-        parserLst = ['^부채총계$']
+        parserLst = [r'^부채총계$',r'^[^가-힣]*부\s*채\s*총\s*계\s*', r'^[가나다라마바사아]*[^가-힣]*부\s*채\s*총\s*계\s*']
         lp = ValueProvider(parserLst)
-        parserLst = ['^당기순이익']
+        parserLst = [r'^당\s*기\s*순\s*이\s*익\s*', r'^[^가-힣]*당\s*기\s*순\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*당\s*기\s*순\s*이\s*익\s*',
+                    r'^당\s*기\s*연\s*결\s*순\s*이\s*익\s*', r'^[^가-힣]*당\s*기\s*연\s*결\s*순\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*당\s*기\s*연\s*결\s*순\s*이\s*익\s*',
+                    r'^반\s*기\s*순\s*이\s*익\s*', r'^[^가-힣]*반\s*기\s*순\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*반\s*기\s*순\s*이\s*익\s*',
+                    r'^반\s*기\s*연\s*결\s*순\s*이\s*익\s*', r'^[^가-힣]*반\s*기\s*연\s*결\s*순\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*반\s*기\s*연\s*결\s*순\s*이\s*익\s*',
+                    r'^분\s*기\s*순\s*이\s*익\s*', r'^[^가-힣]*분\s*기\s*순\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*분\s*기\s*순\s*이\s*익\s*'
+                    r'^분\s*기\s*연\s*결\s*순\s*이\s*익\s*', r'^[^가-힣]*분\s*기\s*연\s*결\s*순\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*분\s*기\s*연\s*결\s*순\s*이\s*익\s*',
+                    r'^당\s분\s*기\s*[연\s*결\s]*순\s*이\s*익\s*', r'^[^가-힣]*당\s*분\s*기\s*[연\s*결\s]*순\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*당\s*분\s*기\s*[연\s*결\s]**순\s*이\s*익\s*']
         ni = ValueProvider(parserLst)
-        parserLst = ['^매출총이익']
+        parserLst = [r'매\s*출\s*총\s*이\s*익\s*',r'[^가-힣]*매\s*출\s*총\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*매\s*출\s*총\s*이\s*익\s*']
         gp = ValueProvider(parserLst)
-        parserLst = ['^영업이익']
+        parserLst = [r'영\s*업\s*이\s*익\s*',r'^[^가-힣]*영\s*업\s*이\s*익\s*', r'^[가나다라마바사아]*[^가-힣]*영\s*업\s*이\s*익\s*']
         op = ValueProvider(parserLst)
+        parserLst = [r'영\s*업\s*활\s*동\s*현\s*금\s*흐\s*름', r'^[^가-힣]*영\s*업\s*활\s*동\s*현\s*금\s*흐\s*름\s*', r'^[가나다라마바사아]*[^가-힣]*영\s*업\s*활\s*동\s*현\s*금\s*흐\s*름\s*',
+                    r'영.*업.*활.*동.*으.*로.*부.*터.*의.*현.*금.*흐.*름.*']
+        oa = ValueProvider(parserLst)
         
 
-        consolidated_balance_sheet = set_of_reports['consolidated_balance_sheet']
+        consolidated_balance_sheet = set_of_reports['consolidated_balance_sheet'][0]
+        unit = set_of_reports['consolidated_balance_sheet'][1]
         consolidatedEquity = ValueSearcher(consolidated_balance_sheet, ep).search()
+        consolidatedEquity = self.multiply_unit(consolidatedEquity, unit)
         consolidatedliability = ValueSearcher(consolidated_balance_sheet, lp).search()
+        consolidatedliability = self.multiply_unit(consolidatedliability, unit)
 
-        consolidated_income_statement = set_of_reports['consolidated_income_statement']
+        consolidated_income_statement = set_of_reports['consolidated_income_statement'][0]
+        unit = set_of_reports['consolidated_income_statement'][1]
         consolidatedNetIncome = ValueSearcher(consolidated_income_statement, ni).search()
+        consolidatedNetIncome = self.multiply_unit(consolidatedNetIncome, unit)
         consolidatedGrossProfit = ValueSearcher(consolidated_income_statement, gp).search()
+        consolidatedGrossProfit = self.multiply_unit(consolidatedGrossProfit, unit)
         consolidatedOperatingProfit = ValueSearcher(consolidated_income_statement, op).search()
+        consolidatedOperatingProfit = self.multiply_unit(consolidatedOperatingProfit, unit)
 
-        Consolidated_comprehensive_income_statement = set_of_reports['Consolidated_comprehensive_income_statement']
+        Consolidated_comprehensive_income_statement = set_of_reports['Consolidated_comprehensive_income_statement'][0]
+        unit = set_of_reports['Consolidated_comprehensive_income_statement'][1]
         consolidatedComprehensiveNetIncome = ValueSearcher(Consolidated_comprehensive_income_statement, ni).search()
+        consolidatedComprehensiveNetIncome = self.multiply_unit(consolidatedComprehensiveNetIncome, unit)
         consolidatedComprehensiveGrossProfit = ValueSearcher(Consolidated_comprehensive_income_statement, gp).search()
+        consolidatedComprehensiveGrossProfit = self.multiply_unit(consolidatedComprehensiveGrossProfit, unit)
         consolidatedComprehensiveOperatingProfit = ValueSearcher(Consolidated_comprehensive_income_statement, op).search()
+        consolidatedComprehensiveOperatingProfit = self.multiply_unit(consolidatedComprehensiveOperatingProfit, unit)
 
-        balance_sheet = set_of_reports['balance_sheet']
-        equity = ValueSearcher(balance_sheet, ep).search()    
+        Consolidated_cash_flow_statement = set_of_reports['Consolidated_cash_flow_statement'][0]
+        unit = set_of_reports['Consolidated_cash_flow_statement'][1]
+        consolidatedOperatingActivities = ValueSearcher(Consolidated_cash_flow_statement, oa).search()
+        consolidatedOperatingActivities = self.multiply_unit(consolidatedOperatingActivities, unit)
+
+        balance_sheet = set_of_reports['balance_sheet'][0]
+        unit = set_of_reports['balance_sheet'][1]
+        equity = ValueSearcher(balance_sheet, ep).search()
+        equity = self.multiply_unit(equity, unit)
         liability = ValueSearcher(balance_sheet, lp).search()
+        liability = self.multiply_unit(liability, unit)
 
-        income_statement = set_of_reports['income_statement']
+        income_statement = set_of_reports['income_statement'][0]
+        unit = set_of_reports['income_statement'][1]
         NetIncome = ValueSearcher(income_statement, ni).search()
+        NetIncome = self.multiply_unit(NetIncome, unit)
         GrossProfit = ValueSearcher(income_statement, gp).search()
+        GrossProfit = self.multiply_unit(GrossProfit, unit)
         OperatingProfit = ValueSearcher(income_statement, op).search()
+        OperatingProfit = self.multiply_unit(OperatingProfit, unit)
 
-        comprehensive_income_statement = set_of_reports['comprehensive_income_statement']
+        comprehensive_income_statement = set_of_reports['comprehensive_income_statement'][0]
+        unit = set_of_reports['comprehensive_income_statement'][1]
         ComprehensiveNetIncome = ValueSearcher(comprehensive_income_statement, ni).search()
+        ComprehensiveNetIncome = self.multiply_unit(ComprehensiveNetIncome, unit)
         ComprehensiveGrossProfit = ValueSearcher(comprehensive_income_statement, gp).search()
+        ComprehensiveGrossProfit = self.multiply_unit(ComprehensiveGrossProfit, unit)
         ComprehensiveOperatingProfit = ValueSearcher(comprehensive_income_statement, op).search()
+        ComprehensiveOperatingProfit = self.multiply_unit(ComprehensiveOperatingProfit, unit)
+
+        cash_flow_statement = set_of_reports['cash_flow_statement'][0]
+        unit = set_of_reports['cash_flow_statement'][1]
+        operatingActivities = ValueSearcher(cash_flow_statement, oa).search()
+        operatingActivities = self.multiply_unit(operatingActivities, unit)
 
         data = FundamentalValues(
             consolidatedEquity, consolidatedliability, 
             consolidatedNetIncome, consolidatedGrossProfit, consolidatedOperatingProfit,
             consolidatedComprehensiveNetIncome, consolidatedComprehensiveGrossProfit, consolidatedComprehensiveOperatingProfit,
+            consolidatedOperatingActivities,
             equity, liability,
             NetIncome, GrossProfit, OperatingProfit,
-            ComprehensiveNetIncome, ComprehensiveGrossProfit, ComprehensiveOperatingProfit
+            ComprehensiveNetIncome, ComprehensiveGrossProfit, ComprehensiveOperatingProfit,
+            operatingActivities
             )
 
         return data
@@ -217,31 +270,32 @@ if __name__ == '__main__' :
     import stockInfo
     import rceptnoInfo
 
-    path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
+    # path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
 
-    stockList = pd.read_parquet(path/'stockListDB.parquet')
-    tickers = stockList.ticker.unique().tolist()
-    ticker = random.choice(tickers)
+    # stockList = pd.read_parquet(path/'stockListDB.parquet')
+    # tickers = stockList.ticker.unique().tolist()
+    # ticker = random.choice(tickers)
 
-    commonStockProvider = stockInfo.commonStockProvider()
-    stockinfo = stockInfo.StockInfo(path, commonStockProvider)
-    stockInfoDic = stockinfo.get_stockInfo(ticker)
-    corp_code = stockInfoDic[ticker]['corp_code']
-    print('='*150)
-    print(f'target : {stockInfoDic[ticker]}')
+    # commonStockProvider = stockInfo.commonStockProvider()
+    # stockinfo = stockInfo.StockInfo(path, commonStockProvider)
+    # stockInfoDic = stockinfo.get_stockInfo(ticker)
+    # corp_code = stockInfoDic[ticker]['corp_code']
+    # print('='*150)
+    # print(f'target : {stockInfoDic[ticker]}')
 
-    preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
-    rc = rceptnoInfo.RceptnoInfo(preprocessor)
-    rceptnoInfoDic = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
+    # preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
+    # rc = rceptnoInfo.RceptnoInfo(preprocessor)
+    # rceptnoInfoDic = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
 
-    rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[corp_code])
-    con = rceptnoInfoDf.add_info == ''
-    rcept_noLst = rceptnoInfoDf.loc[con].rcept_no.to_list()
-    print(f'length of rcept_noLst : {len(rcept_noLst)}')
+    # rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[corp_code])
+    # con = rceptnoInfoDf.add_info == ''
+    # rcept_noLst = rceptnoInfoDf.loc[con].rcept_no.to_list()
+    # print(f'length of rcept_noLst : {len(rcept_noLst)}')
 
-    rcept_no = random.choice(rcept_noLst)
-    # rcept_no = '20191114002509'
+    # rcept_no = random.choice(rcept_noLst)
+    rcept_no = '20180402004606'
     print(f'rcept_no : {rcept_no}')
 
     data = FundamentalValuesProvider(rcept_no).get_fundamental_value()
+    print(f'rcept_no : {rcept_no}')
     print(data)

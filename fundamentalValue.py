@@ -9,11 +9,16 @@ class ValueIdentifier:
     columns_parser = r'^.*[0-9]*.?[기]'
     numeric_parser = r'^[0-9]*\.?[0-9]$'
     def identifyColumns(self, df):
+        df = df.apply(lambda col: col.astype(str), axis=1)
         for col in df.columns:
             con = df.loc[:, col].str.contains(self.columns_parser, regex=True)
             print(f'identified columns : {df.loc[con]}')
-            result = df.loc[con]
-            return result
+            result_df = df.loc[con]
+            result_df = result_df.drop(result_df.columns[0], axis=1)
+            if not result_df.empty :
+                return result_df
+        return None
+
     def identifyNumeric(self, df):
         # con_ = sr.str.contains(self.numeric_parser, regex=True)
         # print(f'identifyNumeric : {sr.loc[con_]}')
@@ -51,12 +56,11 @@ class ReportPreprocessor:
 
         return self.report
 
-class EquityProvider:
+class ValueProvider:
 
-    parserLst = ['^자본총계$']
-
-    def __init__(self):
+    def __init__(self, parserLst):
         self.__report = None
+        self.parserLst = parserLst
 
     def set(self, report):
         self.__report = report
@@ -80,32 +84,32 @@ class EquityProvider:
                 else:
                     return None
 
-class LiabilityProvider:
+# class LiabilityProvider:
 
-    parserLst = ['^부채총계$']
+#     parserLst = ['^부채총계$']
 
-    def __init__(self):
-        self.__report = None
+#     def __init__(self):
+#         self.__report = None
 
-    def set(self, report):
-        self.__report = report
+#     def set(self, report):
+#         self.__report = report
 
-    def get_values(self):
-        for col in self.__report.columns:
-            for parser in self.parserLst:
-                con = self.__report.loc[:, col].str.contains(parser, regex=True)
-                sr = self.__report.loc[con]
-                if not sr.empty:
-                    df = sr.squeeze().reset_index()
-                    print(f'series to df including value : {df}')
-                    df_ = ValueIdentifier().identifyColumns(df)
-                    if isinstance(df_, pd.DataFrame):
-                        value = ValueIdentifier().identifyNumeric(df_)
-                        value = int(float(value))
-                        print(f'liability : {value}', type(value), sep=', ')
-                        return value
-                else:
-                    return None
+#     def get_values(self):
+#         for col in self.__report.columns:
+#             for parser in self.parserLst:
+#                 con = self.__report.loc[:, col].str.contains(parser, regex=True)
+#                 sr = self.__report.loc[con]
+#                 if not sr.empty:
+#                     df = sr.squeeze().reset_index()
+#                     print(f'series to df including value : {df}')
+#                     df_ = ValueIdentifier().identifyColumns(df)
+#                     if isinstance(df_, pd.DataFrame):
+#                         value = ValueIdentifier().identifyNumeric(df_)
+#                         value = int(float(value))
+#                         print(f'liability : {value}', type(value), sep=', ')
+#                         return value
+#                 else:
+#                     return None
 
 class ValueSearcher:
 
@@ -129,8 +133,22 @@ class ValueSearcher:
 class FundamentalValues:
     consolidatedEquity:int
     consolidatedLiability:int
+    consolidatedNetIncome:int
+    consolidatedGrossProfit:int
+    consolidatedOperatingProfit:int
+    consolidatedComprehensiveNetIncome:int
+    consolidatedComprehensiveGrossProfit:int
+    consolidatedComprehensiveOperatingProfit:int
+
     equity:int
     liability:int
+    NetIncome:int
+    GrossProfit:int
+    OperatingProfit:int
+    ComprehensiveNetIncome:int
+    ComprehensiveGrossProfit:int
+    ComprehensiveOperatingProfit:int
+
 
 class FundamentalValuesProvider:
 
@@ -140,21 +158,56 @@ class FundamentalValuesProvider:
     def get_fundamental_value(self):
         set_of_reports = report.ReportSetter(self.rcept_no).get_set_of_report()
 
-        ep = EquityProvider()
-        lp = LiabilityProvider()
+        parserLst = ['^자본총계$']
+        ep = ValueProvider(parserLst)
+        parserLst = ['^부채총계$']
+        lp = ValueProvider(parserLst)
+        parserLst = ['^당기순이익']
+        ni = ValueProvider(parserLst)
+        parserLst = ['^매출총이익']
+        gp = ValueProvider(parserLst)
+        parserLst = ['^영업이익']
+        op = ValueProvider(parserLst)
+        
 
         consolidated_balance_sheet = set_of_reports['consolidated_balance_sheet']
         consolidatedEquity = ValueSearcher(consolidated_balance_sheet, ep).search()
-        consolidatedliability = ValueSearcher(consolidated_balance_sheet, lp).search()    
+        consolidatedliability = ValueSearcher(consolidated_balance_sheet, lp).search()
+
+        consolidated_income_statement = set_of_reports['consolidated_income_statement']
+        consolidatedNetIncome = ValueSearcher(consolidated_income_statement, ni).search()
+        consolidatedGrossProfit = ValueSearcher(consolidated_income_statement, gp).search()
+        consolidatedOperatingProfit = ValueSearcher(consolidated_income_statement, op).search()
+
+        Consolidated_comprehensive_income_statement = set_of_reports['Consolidated_comprehensive_income_statement']
+        consolidatedComprehensiveNetIncome = ValueSearcher(Consolidated_comprehensive_income_statement, ni).search()
+        consolidatedComprehensiveGrossProfit = ValueSearcher(Consolidated_comprehensive_income_statement, gp).search()
+        consolidatedComprehensiveOperatingProfit = ValueSearcher(Consolidated_comprehensive_income_statement, op).search()
 
         balance_sheet = set_of_reports['balance_sheet']
         equity = ValueSearcher(balance_sheet, ep).search()    
-        liability = ValueSearcher(balance_sheet, lp).search()  
+        liability = ValueSearcher(balance_sheet, lp).search()
 
-        data = FundamentalValues(consolidatedEquity, consolidatedliability, equity, liability)
+        income_statement = set_of_reports['income_statement']
+        NetIncome = ValueSearcher(income_statement, ni).search()
+        GrossProfit = ValueSearcher(income_statement, gp).search()
+        OperatingProfit = ValueSearcher(income_statement, op).search()
+
+        comprehensive_income_statement = set_of_reports['comprehensive_income_statement']
+        ComprehensiveNetIncome = ValueSearcher(comprehensive_income_statement, ni).search()
+        ComprehensiveGrossProfit = ValueSearcher(comprehensive_income_statement, gp).search()
+        ComprehensiveOperatingProfit = ValueSearcher(comprehensive_income_statement, op).search()
+
+        data = FundamentalValues(
+            consolidatedEquity, consolidatedliability, 
+            consolidatedNetIncome, consolidatedGrossProfit, consolidatedOperatingProfit,
+            consolidatedComprehensiveNetIncome, consolidatedComprehensiveGrossProfit, consolidatedComprehensiveOperatingProfit,
+            equity, liability,
+            NetIncome, GrossProfit, OperatingProfit,
+            ComprehensiveNetIncome, ComprehensiveGrossProfit, ComprehensiveOperatingProfit
+            )
 
         return data
-
 
 
 if __name__ == '__main__' :
@@ -187,7 +240,7 @@ if __name__ == '__main__' :
     print(f'length of rcept_noLst : {len(rcept_noLst)}')
 
     rcept_no = random.choice(rcept_noLst)
-    # rcept_no = '20141114000936'
+    # rcept_no = '20191114002509'
     print(f'rcept_no : {rcept_no}')
 
     data = FundamentalValuesProvider(rcept_no).get_fundamental_value()

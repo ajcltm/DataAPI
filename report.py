@@ -160,7 +160,7 @@ class ReportSearcher:
         for report in self.reports:
             for col in report.columns:
                 test_report = report.loc[:, col]
-                print(f'value : {test_report.values}')
+                print(f'value : {test_report.values[:5]}')
                 dtype = test_report.values.dtype
                 print(f'dtype : {dtype}')
                 bool1 = dtype == 'float'
@@ -210,9 +210,11 @@ class ReportSetter:
 
     def get_set_of_report(self):
         set_of_report = {}
-        # html = HtmlProvider(r'.*연결재무제표$', r'.*재무제표 등$').get_html(self.rcept_no)
+
         set_of_htmls = HtmlSetter(self.rcept_no).get_set_of_htmls()
+        
         htmlForConsolidated = set_of_htmls['htmlForConsolidated']
+        
         parser_format_lst = [r'연\s*결\s*재\s*무\s*상\s*태\s*표\s*', r'연\s*결\s*대\s*차\s*대\s*조\s*표\s*']
         rs = ReportSearcher(parser_format_lst)
         consolidated_balance_sheet = ReportProvider(htmlForConsolidated, rs).get_report()
@@ -223,11 +225,37 @@ class ReportSetter:
         consolidated_income_statement = ReportProvider(htmlForConsolidated, rs).get_report()
         set_of_report['consolidated_income_statement'] = consolidated_income_statement
 
+        parser_format_lst = [r'연\s*결\s*포\s*괄\s*손\s*익\s*계\s*산\s*서\s*']
+        rs = ReportSearcher(parser_format_lst)
+        Consolidated_comprehensive_income_statement = ReportProvider(htmlForConsolidated, rs).get_report()
+        set_of_report['Consolidated_comprehensive_income_statement'] = Consolidated_comprehensive_income_statement
+
+        parser_format_lst = [r'연\s*결\s*현\s*금\s*흐\s*름\s*표\s*']
+        rs = ReportSearcher(parser_format_lst)
+        Consolidated_cash_flow_statement = ReportProvider(htmlForConsolidated, rs).get_report()
+        set_of_report['Consolidated_cash_flow_statement'] = Consolidated_cash_flow_statement
+
+
         htmlForNonConsolidated = set_of_htmls['htmlForNonConsolidated']
-        parser_format_lst = [r'^[^가-힣]*재\s*무\s*상\s*태\s*표\s*', r'^[가-하]*[^가-힣]*재\s*무\s*상\s*태\s*표\s*', r'^[^가-힣]*대\s*차\s*대\s*조\s*표\s*']
+        parser_format_lst = [r'^[^가-힣]*재\s*무\s*상\s*태\s*표\s*', r'^[가나다라마바사아]*[^가-힣]*재\s*무\s*상\s*태\s*표\s*', r'^[^가-힣]*대\s*차\s*대\s*조\s*표\s*']
         rs = ReportSearcher(parser_format_lst)
         balance_sheet = ReportProvider(htmlForNonConsolidated, rs).get_report()
         set_of_report['balance_sheet'] = balance_sheet
+
+        parser_format_lst = [r'^[^가-힣]*손\s*익\s*계\s*산\s*서\s*', r'^[가나다라마바사아]*[^가-힣]*손\s*익\s*계\s*산\s*서\s*']
+        rs = ReportSearcher(parser_format_lst)
+        income_statement = ReportProvider(htmlForNonConsolidated, rs).get_report()
+        set_of_report['income_statement'] = income_statement
+
+        parser_format_lst = [r'^[^가-힣]*포\s*괄\s*손\s*익\s*계\s*산\s*서\s*', r'^[가나다라마바사아]*[^가-힣]*포\s*괄\s*손\s*익\s*계\s*산\s*서\s*']
+        rs = ReportSearcher(parser_format_lst)
+        comprehensive_income_statement = ReportProvider(htmlForNonConsolidated, rs).get_report()
+        set_of_report['comprehensive_income_statement'] = comprehensive_income_statement
+
+        parser_format_lst = [r'^[^가-힣]*현\s*금\s*흐\s*름\s*표\s*', r'^[가나다라마바사아]*[^가-힣]*현\s*금\s*흐\s*름\s*표\s*']
+        rs = ReportSearcher(parser_format_lst)
+        cash_flow_statement = ReportProvider(htmlForNonConsolidated, rs).get_report()
+        set_of_report['cash_flow_statement'] = cash_flow_statement
 
         return set_of_report
 

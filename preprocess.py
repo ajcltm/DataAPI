@@ -7,7 +7,8 @@ class ReportPreprocessor:
 
     def operation(self):
         report = self.report.fillna(0)  # replace 'None' with the number of zero.
-        report = report.apply(lambda col: col.astype(str), axis=1) 
+        report = report.apply(lambda col: col.astype(str), axis=1)
+        report = report.apply(lambda col: col.str.replace('-', ''), axis=1)
         report = report.apply(lambda col: col.str.replace(' ', ''), axis=1)
         report = report.apply(lambda col: col.str.replace(',', ''), axis=1)
         report = report.apply(lambda col: col.str.replace('(', '-'), axis=1)

@@ -1,7 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List, Dict
 
 import numpy as np
 import pandas as pd
+from datetime import datetime
 import report
 
 
@@ -261,6 +263,45 @@ class FundamentalValuesProvider:
             )
 
         return data
+    
+@dataclass
+class FundamentalValuesInfo:
+    corp_code: str
+    rcept_no: str
+    date: str
+    data: FundamentalValues
+
+
+@dataclass
+class FundamentalValuesInfoProvider:
+    corp_code : str
+    s_date : str
+    e_date : str
+    values: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+
+        preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
+        rc = rceptnoInfo.RceptnoInfo(preprocessor)
+        rceptnoInfoDic = rc.get_rceptnoInfo(self.corp_code, self.s_date, self.e_date)
+
+        rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[self.corp_code])
+        con = rceptnoInfoDf.add_info == ''
+        rceptnoInfoDfcon = rceptnoInfoDf.loc[con]
+
+        # for k in range(0, len(rceptnoInfoDfcon)):
+        for k in range(0, 5):
+            rcept_no = rceptnoInfoDfcon.iloc[k].rcept_no
+            print(f'rcept_no : {rcept_no}')
+
+            date = rceptnoInfoDfcon.iloc[k].date
+
+            data = FundamentalValuesProvider(rcept_no).get_fundamental_value()
+            print(f'rcept_no : {rcept_no}')
+            print(data)
+
+            self.values[date] = FundamentalValuesInfo(corp_code, rcept_no, date, data)
+
 
 
 if __name__ == '__main__' :
@@ -270,32 +311,19 @@ if __name__ == '__main__' :
     import stockInfo
     import rceptnoInfo
 
-    # path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
+    path = Path.home().joinpath('Desktop', 'dataBackUp(211021)')
 
-    # stockList = pd.read_parquet(path/'stockListDB.parquet')
-    # tickers = stockList.ticker.unique().tolist()
-    # ticker = random.choice(tickers)
+    stockList = pd.read_parquet(path/'stockListDB.parquet')
+    tickers = stockList.ticker.unique().tolist()
+    ticker = random.choice(tickers)
 
-    # commonStockProvider = stockInfo.commonStockProvider()
-    # stockinfo = stockInfo.StockInfo(path, commonStockProvider)
-    # stockInfoDic = stockinfo.get_stockInfo(ticker)
-    # corp_code = stockInfoDic[ticker]['corp_code']
-    # print('='*150)
-    # print(f'target : {stockInfoDic[ticker]}')
+    commonStockProvider = stockInfo.commonStockProvider()
+    stockinfo = stockInfo.StockInfo(path, commonStockProvider)
+    stockInfoDic = stockinfo.get_stockInfo(ticker)
+    corp_code = stockInfoDic[ticker]['corp_code']
+    print('='*150)
+    print(f'target : {stockInfoDic[ticker]}')
 
-    # preprocessor = rceptnoInfo.PreprocessorRceptnoInfo()
-    # rc = rceptnoInfo.RceptnoInfo(preprocessor)
-    # rceptnoInfoDic = rc.get_rceptnoInfo(corp_code, '20100101', '20211130')
+    result = FundamentalValuesInfoProvider(corp_code, '20100101', '20211130')
 
-    # rceptnoInfoDf = pd.DataFrame(rceptnoInfoDic[corp_code])
-    # con = rceptnoInfoDf.add_info == ''
-    # rcept_noLst = rceptnoInfoDf.loc[con].rcept_no.to_list()
-    # print(f'length of rcept_noLst : {len(rcept_noLst)}')
-
-    # rcept_no = random.choice(rcept_noLst)
-    rcept_no = '20180402004606'
-    print(f'rcept_no : {rcept_no}')
-
-    data = FundamentalValuesProvider(rcept_no).get_fundamental_value()
-    print(f'rcept_no : {rcept_no}')
-    print(data)
+    print(f'result : {result}')
